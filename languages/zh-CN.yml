@@ -1,15 +1,15 @@
 ---
 name: 简体中文
 favicon:
-  show: （●´3｀●）やれやれだぜ
-  hide: (´Д｀)大変だ！
+  show: ψ(｀∇´)ψ 欢迎回来!
+  hide: 《原子弹入门及制造》
 
 title:
   archive: 归档
   category: 分类
   tag: 标签
   all: 全部
-  not_found: Σ( ° △ °|||)︴404！何も見えない
+  not_found: ∑(っ °Д °;)っ404! 迷路了?
   category_in: 分类于"%s"的文章
   tag_in: 包含标签"%s"的文章
   archive_in: 发表于"%s"的文章
@@ -22,6 +22,7 @@ menu:
   tags: 标签
   about: 关于
   search: 搜索
+  friends: 友人帐
 
 sidebar:
   overview: 站点概览
@@ -57,7 +58,7 @@ post:
     nocopy: "<span class=\"red\">本页内容禁止转载！</span>"
 
 footer:
-  powered: "基于 %s"
+  powered: "Powered-by %s"
   total_views: 总访问量
   total_visitors: 总访客量
 
