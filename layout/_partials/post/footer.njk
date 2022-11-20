@@ -10,12 +10,14 @@
   {%- endif %}
 
   {%- if theme.valine.appId and theme.valine.appKey and theme.valine.visitor %}
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
   <span id="{{ page.path | replace('index.html', '') }}" class="item leancloud_visitors" data-flag-title="{{ post.title }}" title="{{ __('post.views') }}">
       <span class="icon">
         <i class="ic i-eye"></i>
       </span>
       <span class="text">{{ __('post.views') }}</span>
-      <span class="leancloud-visitors-count"></span>
+      <span id="busuanzi_value_page_pv"></span>
+      {# <span class="leancloud-visitors-count"></span> #}
       <span class="text">{{ __('symbols_count_time.view') }}</span>
   </span>
   {%- endif %}
