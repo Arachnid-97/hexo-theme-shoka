@@ -430,6 +430,7 @@ const loadComments = function () {
   }
 }
 
+/* algolia Search */
 const algoliaSearch = function(pjax) {
   if(CONFIG.search === null)
     return
@@ -465,6 +466,7 @@ const algoliaSearch = function(pjax) {
     instantsearch.widgets.searchBox({
       container           : '.search-input-container',
       placeholder         : LOCAL.search.placeholder,
+      searchOnEnterKeyPressOnly: true,  // Only search when press enter key
       // Hide default icons of algolia search
       showReset           : false,
       showSubmit          : false,
@@ -492,6 +494,13 @@ const algoliaSearch = function(pjax) {
         item: function(data) {
           var cats = data.categories ? '<span>'+data.categories.join('<i class="ic i-angle-right"></i>')+'</span>' : '';
           return '<a href="' + CONFIG.root + data.path +'">'+cats+data._highlightResult.title.value+'</a>';
+
+          // var cats = data.categories ? '<span>'+data.categories.join('<i class="ic i-angle-right"></i>')+'</span>' : '';
+          // return '<a href="' + CONFIG.root + data.path +'">' + cats + 
+          // '<b>' + data._highlightResult.title.value + '</b><br>' + 
+          // data._snippetResult.contentStrip.value + '<br>( 匹配字词 : ' + 
+          // data._highlightResult.contentStrip.matchedWords + ' ) | ( 匹配等级 : ' + 
+          // data._highlightResult.contentStrip.matchLevel + ' )' + '</a>';
         },
         empty: function(data) {
           return '<div id="hits-empty">'+
@@ -556,3 +565,926 @@ const algoliaSearch = function(pjax) {
     }
   });
 }
+
+/* local Search 
+const localSearch = function(pjax) {
+  // 参考 hexo next 主题的配置方法
+  // 参考 https://qiuyiwu.github.io/2019/01/25/Hexo-LocalSearch/ 博文
+  if(CONFIG.search === null)
+    return
+
+  if(!siteSearch) {
+    siteSearch = BODY.createChild('div', {
+      id: 'search',
+      innerHTML: `<div class="inner">
+                    <div class="header">
+                      <span class="icon">
+                        <i class="ic i-search">
+                        </i>
+                      </span>
+                      <div class="search-input-container">
+                      <input  class="search-input"
+                              autocomplete="off"
+                              placeholder="${LOCAL.search.placeholder}"
+                              spellcheck="false"
+                              type="text"
+                              id="local-search-input">
+                      </div>
+                        <span class="close-btn">
+                          <i class="ic i-times-circle">
+                          </i>
+                        </span>
+                      </div>
+                      <div class="results" id="search-results">
+                        <div class="inner">
+                          <div id="search-stats">
+                          </div>
+                          <div id="search-hits">
+                          </div>
+                          <div id="search-pagination">
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>`
+    });
+  }
+  
+  let isFetched = false;
+  let datas;
+  let isXml = true;
+  let current_page = 0;
+  let article_per_page = parseInt(CONFIG.search.article_per_page, 10);
+  let total_pages = 0;
+  let max_page_on_show = 7; // 一次最多显示 7 个页码
+  let start_page = 0;
+  let end_page = 0;
+  let resultItems = [];
+
+  // search DB path
+  let searchPath = CONFIG.search.path;
+  if (searchPath.length === 0) {
+    searchPath = 'search.xml';
+  } else if (searchPath.endsWith('json')) {
+    isXml = false;
+  }
+
+  const input = $('.search-input'); // document.querySelector('.search-input');
+  const resultContent = document.getElementById('search-hits');
+  const paginationContent = document.getElementById('search-pagination');
+
+  const getIndexByWord = (word, text, caseSensitive) => {
+    if (CONFIG.search.unescape) {
+      let div = document.createElement('div');
+      div.innerText = word;
+      word = div.innerHTML;
+    }
+    let wordLen = word.length;
+    if (wordLen === 0) {
+      return [];
+    }
+    let startPosition = 0;
+    let position = [];
+    let index = [];
+    if (!caseSensitive) {
+      text = text.toLowerCase();
+      word = word.toLowerCase();
+    }
+
+    while ((position = text.indexOf(word, startPosition)) > -1) {
+      index.push({position, word});
+      startPosition = position + wordLen;
+    }
+    return index;
+  };
+
+  // Merge hits into slices
+  const mergeIntoSlice = (start, end, index, searchText) => {
+    let item = index[index.length - 1];
+    let {position, word} = item;
+    let hits = [];
+    let searchTextCountInSlice = 0;
+    while (position + word.length <= end && index.length !== 0) {
+      if (word === searchText) {
+        searchTextCountInSlice++;
+      }
+      hits.push({
+        position,
+        length: word.length
+      });
+
+      let wordEnd = position + word.length;
+
+      // Move to next position of hit
+      index.pop();
+      while (index.length !== 0) {
+        item = index[index.length - 1];
+        position = item.position;
+        word = item.word;
+        if (wordEnd > position) {
+          index.pop();
+        } else {
+          break;
+        }
+      }
+    }
+    return {
+      hits,
+      start,
+      end,
+      searchTextCount: searchTextCountInSlice
+    };
+  }
+
+  // Highlight title and content
+  const highlightKeyword = (text, slice) => {
+    let result = '';
+    let prevEnd = slice.start;
+    slice.hits.forEach(hit => {
+      result += text.substring(prevEnd, hit.position);
+      let end = hit.position + hit.length;
+      result += `<mark>${text.substring(hit.position, end)}</mark>`;
+      prevEnd = end;
+    });
+    result += text.substring(prevEnd, slice.end);
+    return result;
+  };
+
+  const pagination = () => {
+    const addPrevPage = (current_page) => {
+      let classContent = '';
+      let numberContent = '';
+      if (current_page === 0) {
+        classContent = '#search-pagination pagination-item disabled-item';
+        numberContent = '<span class="#search-pagination page-number"><i class="ic i-angle-left"></i></span>';
+      } else {
+        classContent = '#search-pagination pagination-item';
+        numberContent = `<a class="#search-pagination page-number" aria-label="Prev" href="#">
+                          <i class="ic i-angle-left"></i>
+                        </a>`;
+      }
+      let prevPage = `<li class="${classContent}" id="prev-page">
+                        ${numberContent} 
+                      </li>`;
+      return prevPage;
+    };
+
+    const addNextPage = (current_page) => {
+      let classContent = '';
+      let numberContent = '';
+      if ((current_page + 1) === total_pages) {
+        classContent = '#search-pagination pagination-item disabled-item';
+        numberContent = '<span class="#search-pagination page-number"><i class="ic i-angle-right"></i></span>';
+      } else {
+        classContent = '#search-pagination pagination-item';
+        numberContent = `<a class="#search-pagination page-number" aria-label="Next" href="#">
+                          <i class="ic i-angle-right"></i>
+                        </a>`;
+      }
+      let nextPage = `<li class="${classContent}" id="next-page">
+                        ${numberContent} 
+                      </li>`;
+      return nextPage;
+    };
+
+    const addPage = (index, current_page) => {
+      let classContent = '';
+      let numberContent = `<a class="#search-pagination page-number" aria-label="${index + 1}" href="#">
+                            ${index + 1}
+                          </a>`;
+      if (index === current_page) {
+        classContent = '#search-pagination pagination-item current';
+      } else {
+        classContent = '#search-pagination pagination-item';
+      }
+      let page = `<li class="${classContent}" id="page-${index + 1}">
+                    ${numberContent} 
+                  </li>`;
+      return page;
+    }
+
+    const addPaginationEvents = (start_page, end_page) => {
+      if (total_pages <= 0) {
+        return;
+      }
+      const onPrevPageClick = (event) => {
+        if (current_page > 0) {
+          current_page -= 1;
+        }
+        if (current_page < start_page) {
+          start_page = current_page;
+          end_page = Math.min(end_page, start_page + max_page_on_show);
+        }
+        pagination();
+      };
+      const onNextPageClick = (event) => {
+        if ((current_page + 1) < total_pages) {
+          current_page += 1;
+        }
+        if (current_page > end_page) {
+          end_page = current_page;
+          start_page = Math.max(0, end_page - max_page_on_show);
+        }
+        pagination();
+      };
+      const onPageClick = (event) => {
+        let page_number = parseInt(event.target.ariaLabel);
+        current_page = page_number - 1; // note minus 1 here
+        pagination();
+      };
+      let prevPage = document.getElementById('prev-page');
+      prevPage.addEventListener('click', onPrevPageClick);
+      let nextPage = document.getElementById('next-page');
+      nextPage.addEventListener('click', onNextPageClick);
+      for (var i = start_page; i < end_page; i += 1) {
+        let page = document.getElementById(`page-${i + 1}`);
+        page.addEventListener('click', onPageClick);
+      }
+    };
+    
+    paginationContent.innerHTML = ''; // clear
+    let begin_index = Math.min(current_page * article_per_page, resultItems.length);
+    let end_index = Math.min(begin_index + article_per_page, resultItems.length);
+    // resultContent.innerHTML = `${resultItems.slice(begin_index, end_index).map(result => result.item).join('')}`;
+    
+    start_page = Math.max(0, total_pages - max_page_on_show);
+    end_page = start_page + Math.min(total_pages, max_page_on_show);
+    let pageContent = '<div class="#search-pagination">';
+    pageContent += '<div class="#search-pagination pagination">';
+    pageContent += '<ul>';
+    if (total_pages > 0) {
+      // add prev page arrow, when no prev page not selectable
+      pageContent += addPrevPage(current_page);
+      for (let i = start_page; i < end_page; i += 1) {
+        pageContent += addPage(i, current_page);
+      }
+      // add next page arrow, when no next page not selectable
+      pageContent += addNextPage(current_page);
+    }
+    pageContent += '</ul>';
+    pageContent += '</div>';
+    pageContent += '</div>';
+    paginationContent.innerHTML = pageContent;
+    addPaginationEvents(start_page, end_page);
+    resultContent.scrollTop = 0;  // scroll to top
+    window.pjax && window.pjax.refresh(resultContent);
+  };
+
+  const inputEventFunction = () => {
+    if (!isFetched) {
+      console.log("Data not fetched.");
+      return;
+    }
+
+    let searchText = input.value.trim().toLowerCase();
+    let keywords = searchText.split(/[-\s]+/);
+    if (keywords.length > 1) {
+      keywords.push(searchText);
+    }
+    resultItems = [];
+    if (searchText.length > 0) {
+      // Perform local searching
+      datas.forEach(({categories, title, content, url}, index) => {
+        let titleInLowerCase = title.toLowerCase();
+        let contentInLowerCase = content.toLowerCase();
+        let indexOfTitle = [];
+        let indexOfContent = [];
+        let searchTextCount = 0;
+        keywords.forEach(keyword => {
+          indexOfTitle = indexOfTitle.concat(getIndexByWord(keyword, titleInLowerCase, false));
+          indexOfContent = indexOfContent.concat(getIndexByWord(keyword, contentInLowerCase, false));
+        });
+
+        // Show search results
+        if (indexOfTitle.length > 0 || indexOfContent.length > 0) {
+          let hitCount = indexOfTitle.length + indexOfContent.length;
+          // Sort index by position of keyword
+          [indexOfTitle, indexOfContent].forEach(index => {
+            index.sort((itemLeft, itemRight) => {
+              if (itemRight.position !== itemLeft.position) {
+                return itemRight.position - itemLeft.position;
+              }
+              return itemLeft.word.length - item.word.length;
+            });
+          });
+
+          let slicesOfTitle = [];
+          if (indexOfTitle.length !== 0) {
+            let tmp = mergeIntoSlice(0, title.length, indexOfTitle, searchText);
+            searchTextCount += tmp.searchTextCountInSlice;
+            slicesOfTitle.push(tmp);
+          }
+
+          let slicesOfContent = [];
+          while (indexOfContent.length !== 0) {
+            let item = indexOfContent[indexOfContent.length - 1];
+            let {position, word} = item;
+            // Cut out 100 characters
+            let start = position - 20;
+            let end = position + 30;
+            if (start < 0) {
+              start = 0;
+            }
+            if (end < position + word.length) {
+              end = position + word.length;
+            }
+            if (end > content.length) {
+              end = content.length;
+            }
+            let tmp = mergeIntoSlice(start, end, indexOfContent, searchText);
+            searchTextCount += tmp.searchTextCountInSlice;
+            slicesOfContent.push(tmp);
+          }
+
+          // Sort slices in content by search text's count and hits' count
+          slicesOfContent.sort((sliceLeft, sliceRight) => {
+            if (sliceLeft.searchTextCount !== sliceRight.searchTextCount) {
+              return sliceRight.searchTextCount - sliceLeft.searchTextCount;
+            } else if (sliceLeft.hits.length !== sliceRight.hits.length) {
+              return sliceRight.hits.length - sliceLeft.hits.length;
+            }
+            return sliceLeft.start - sliceRight.start;
+          });
+
+          // Select top N slices in content
+          let upperBound = parseInt(CONFIG.search.top_n_per_article, 10);
+          if (upperBound >= 0) {
+            slicesOfContent = slicesOfContent.slice(0, upperBound);
+          }
+
+          let resultItem = '';
+          resultItem += '<div class="#search-hits item">';
+          // resultItem += '<div class="#search-hits">';
+          // resultItem += '<ol class="item">'
+          resultItem += '<li>'
+          // resultItem += '<li>';
+          var cats = categories !== undefined ? '<span>' + categories.join('<i class="ic i-angle-right"></i>') + '</span>' : '<span>No categories</span>';
+          resultItem += `<a href="${url}">` + cats;
+          if (slicesOfTitle.length !== 0) {
+            // resultItem += `<li><a href="${url}">${highlightKeyword(title, slicesOfTitle[0])}</a>`;
+            resultItem += `<b>${highlightKeyword(title, slicesOfTitle[0])}</b><br>`;
+          } else {
+            // resultItem += `<li><a href="${url}">${title}</a>`;
+            resultItem += `<b>${title}</b><br>`;
+          }
+
+          slicesOfContent.forEach(slice => {
+            // resultItem += `<a href="${url}"><p>${highlightKeyword(content, slice)}...</p></a>`;
+            resultItem += `<li class="#search-hits subitem">${highlightKeyword(content, slice)} ...</li>`;
+          });
+
+          // resultItem += '</li>';
+          resultItem += '</a>';
+          resultItem += '</li>';
+          // resultItem += '</ol>';
+          resultItem += '</div>';
+          resultItems.push({
+            item: resultItem,
+            id  : resultItems.length,
+            hitCount,
+            searchTextCount
+          });
+        }
+      });
+    }
+
+    if (keywords.length === 1 && keywords[0] === '') {
+      resultContent.innerHTML = '<div id="no-result"><i></i></div>';
+    } else if (resultItems.length === 0) {
+      resultContent.innerHTML = '<div id="no-result"><i></i></div>';
+    } else {
+      resultItems.sort((resultLeft, resultRight) => {
+        if (resultLeft.searchTextCount !== resultRight.searchTextCount) {
+          return resultRight.searchTextCount - resultLeft.searchTextCount;
+        } else if (resultLeft.hitCount !== resultRight.hitCount) {
+          return resultRight.hitCount - resultLeft.hitCount;
+        }
+        return resultRight.id - resultLeft.id;
+      });
+    }
+    // Do pagination
+    total_pages = Math.ceil(resultItems.length / article_per_page);
+    pagination();
+  }
+
+  const fetchData = () => {
+    fetch(CONFIG.root + searchPath)
+      .then(response => response.text())
+      .then(res => {
+        // Get the contents from search data
+        isFetched = true;
+        datas = isXml ? [...new DOMParser().parseFromString(res, 'text/xml').querySelectorAll('entry')].map(element => {
+          return {
+            title  : element.querySelector('title').textContent,
+            content: element.querySelector('content').textContent,
+            url    : element.querySelector('url').textContent
+          };
+        }) : JSON.parse(res);
+        // Only match articles with not empty titles
+        datas = datas.filter(data => data.title).map(data => {
+          data.title = data.title.trim();
+          data.content = data.content ? data.content.trim().replace(/<[^>]+>/g, '') : '';
+          data.url = decodeURIComponent(data.url).replace(/\/{2,}/g, '/');
+          return data;
+        });
+        // Remove loading animation
+        document.getElementById('search-hits').innerHTML = '<i></i>';
+        inputEventFunction();
+      });
+  };
+
+  if (CONFIG.search.preload) {
+    console.log("fetch data.");
+    fetchData();
+  }
+
+  if (CONFIG.search.trigger === 'auto') {
+    input.addEventListener('input', inputEventFunction);
+  } else {
+    document.querySelector('.search-icon').addEventListener('click', inputEventFunction);
+    input.addEventListener('keypress', event => {
+      if (event.key === 'Enter') {
+        inputEventFunction();
+      }
+    });
+  }
+
+  // Handle and trigger popup window
+  document.querySelectorAll('.popup-trigger').forEach(element => {
+    element.addEventListener('click', () => {
+      document.body.style.overflow = 'hidden';
+      document.querySelector('.search-pop-overlay').classList.add('search-active');
+      input.focus();
+      if (!isFetched) fetchData();
+    });
+  });
+
+  // Handle and trigger popup window
+  $.each('.search', function(element) {
+    element.addEventListener('click', function() {
+      document.body.style.overflow = 'hidden';
+      transition(siteSearch, 'shrinkIn', function() {
+          $('.search-input').focus();
+        }) // transition.shrinkIn
+    });
+  });
+
+  // Monitor main search box
+  const onPopupClose = function() {
+    document.body.style.overflow = ' ';
+    transition(siteSearch, 0); // "transition.shrinkOut"
+  };
+
+  siteSearch.addEventListener('click', function(event) {
+    if (event.target === siteSearch) {
+      onPopupClose();
+    }
+  });
+
+  $('.close-btn').addEventListener('click', onPopupClose);
+  window.addEventListener('pjax:success', onPopupClose);
+  window.addEventListener('keyup', function(event) {
+    if (event.key === 'Escape') {
+      onPopupClose();
+    }
+  });
+}
+*/
+
+function _toConsumableArray(arr) { return _arrayWithoutHoles(arr) || _iterableToArray(arr) || _unsupportedIterableToArray(arr) || _nonIterableSpread(); }
+function _nonIterableSpread() { throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
+function _unsupportedIterableToArray(o, minLen) { if (!o) return; if (typeof o === "string") return _arrayLikeToArray(o, minLen); var n = Object.prototype.toString.call(o).slice(8, -1); if (n === "Object" && o.constructor) n = o.constructor.name; if (n === "Map" || n === "Set") return Array.from(o); if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _arrayLikeToArray(o, minLen); }
+function _iterableToArray(iter) { if (typeof Symbol !== "undefined" && iter[Symbol.iterator] != null || iter["@@iterator"] != null) return Array.from(iter); }
+function _arrayWithoutHoles(arr) { if (Array.isArray(arr)) return _arrayLikeToArray(arr); }
+function _arrayLikeToArray(arr, len) { if (len == null || len > arr.length) len = arr.length; for (var i = 0, arr2 = new Array(len); i < len; i++) arr2[i] = arr[i]; return arr2; }
+var localSearch = function localSearch(pjax) {
+  // 参考 hexo next 主题的配置方法
+  // 参考 https://qiuyiwu.github.io/2019/01/25/Hexo-LocalSearch/ 博文
+  if (CONFIG.search === null) return;
+  if (!siteSearch) {
+    siteSearch = BODY.createChild('div', {
+      id: 'search',
+      innerHTML: "<div class=\"inner\">\n<div class=\"header\">\n<span class=\"icon\">\n<i class=\"ic i-search\">\n</i>\n</span>\n<div class=\"search-input-container\">\n<input  class=\"search-input\"\nautocomplete=\"off\"\nplaceholder=\"".concat(LOCAL.search.placeholder, "\"\nspellcheck=\"false\"\ntype=\"text\"\nid=\"local-search-input\">\n</div>\n<span class=\"close-btn\">\n<i class=\"ic i-times-circle\">\n</i>\n</span>\n</div>\n<div class=\"results\" id=\"search-results\">\n<div class=\"inner\">\n<div id=\"search-stats\">\n</div>\n<div id=\"search-hits\">\n</div>\n<div id=\"search-pagination\">\n</div>\n</div>\n</div>\n</div>\n</div>")
+    });
+  }
+  var isFetched = false;
+  var datas;
+  var isXml = true;
+  var current_page = 0;
+  var article_per_page = parseInt(CONFIG.search.article_per_page, 10);
+  var total_pages = 0;
+  var max_page_on_show = 7; // 一次最多显示 7 个页码
+  var start_page = 0;
+  var end_page = 0;
+  var resultItems = [];
+
+  // search DB path
+  var searchPath = CONFIG.search.path;
+  if (searchPath.length === 0) {
+    searchPath = 'search.xml';
+  } else if (searchPath.endsWith('json')) {
+    isXml = false;
+  }
+  var input = $('.search-input'); // document.querySelector('.search-input');
+  var resultContent = document.getElementById('search-hits');
+  var paginationContent = document.getElementById('search-pagination');
+  var getIndexByWord = function getIndexByWord(word, text, caseSensitive) {
+    if (CONFIG.search.unescape) {
+      var div = document.createElement('div');
+      div.innerText = word;
+      word = div.innerHTML;
+    }
+    var wordLen = word.length;
+    if (wordLen === 0) {
+      return [];
+    }
+    var startPosition = 0;
+    var position = [];
+    var index = [];
+    if (!caseSensitive) {
+      text = text.toLowerCase();
+      word = word.toLowerCase();
+    }
+    while ((position = text.indexOf(word, startPosition)) > -1) {
+      index.push({
+        position: position,
+        word: word
+      });
+      startPosition = position + wordLen;
+    }
+    return index;
+  };
+
+  // Merge hits into slices
+  var mergeIntoSlice = function mergeIntoSlice(start, end, index, searchText) {
+    var item = index[index.length - 1];
+    var _item = item,
+      position = _item.position,
+      word = _item.word;
+    var hits = [];
+    var searchTextCountInSlice = 0;
+    while (position + word.length <= end && index.length !== 0) {
+      if (word === searchText) {
+        searchTextCountInSlice++;
+      }
+      hits.push({
+        position: position,
+        length: word.length
+      });
+      var wordEnd = position + word.length;
+
+      // Move to next position of hit
+      index.pop();
+      while (index.length !== 0) {
+        item = index[index.length - 1];
+        position = item.position;
+        word = item.word;
+        if (wordEnd > position) {
+          index.pop();
+        } else {
+          break;
+        }
+      }
+    }
+    return {
+      hits: hits,
+      start: start,
+      end: end,
+      searchTextCount: searchTextCountInSlice
+    };
+  };
+
+  // Highlight title and content
+  var highlightKeyword = function highlightKeyword(text, slice) {
+    var result = '';
+    var prevEnd = slice.start;
+    slice.hits.forEach(function (hit) {
+      result += text.substring(prevEnd, hit.position);
+      var end = hit.position + hit.length;
+      result += "<mark>".concat(text.substring(hit.position, end), "</mark>");
+      prevEnd = end;
+    });
+    result += text.substring(prevEnd, slice.end);
+    return result;
+  };
+  var pagination = function pagination() {
+    var addPrevPage = function addPrevPage(current_page) {
+      var classContent = '';
+      var numberContent = '';
+      if (current_page === 0) {
+        classContent = '#search-pagination pagination-item disabled-item';
+        numberContent = '<span class="#search-pagination page-number"><i class="ic i-angle-left"></i></span>';
+      } else {
+        classContent = '#search-pagination pagination-item';
+        numberContent = "<a class=\"#search-pagination page-number\" aria-label=\"Prev\" href=\"#\">\n                          <i class=\"ic i-angle-left\"></i>\n                        </a>";
+      }
+      var prevPage = "<li class=\"".concat(classContent, "\" id=\"prev-page\">\n                        ").concat(numberContent, " \n                      </li>");
+      return prevPage;
+    };
+    var addNextPage = function addNextPage(current_page) {
+      var classContent = '';
+      var numberContent = '';
+      if (current_page + 1 === total_pages) {
+        classContent = '#search-pagination pagination-item disabled-item';
+        numberContent = '<span class="#search-pagination page-number"><i class="ic i-angle-right"></i></span>';
+      } else {
+        classContent = '#search-pagination pagination-item';
+        numberContent = "<a class=\"#search-pagination page-number\" aria-label=\"Next\" href=\"#\">\n                          <i class=\"ic i-angle-right\"></i>\n                        </a>";
+      }
+      var nextPage = "<li class=\"".concat(classContent, "\" id=\"next-page\">\n                        ").concat(numberContent, " \n                      </li>");
+      return nextPage;
+    };
+    var addPage = function addPage(index, current_page) {
+      var classContent = '';
+      var numberContent = "<a class=\"#search-pagination page-number\" aria-label=\"".concat(index + 1, "\" href=\"#\">\n                            ").concat(index + 1, "\n                          </a>");
+      if (index === current_page) {
+        classContent = '#search-pagination pagination-item current';
+      } else {
+        classContent = '#search-pagination pagination-item';
+      }
+      var page = "<li class=\"".concat(classContent, "\" id=\"page-").concat(index + 1, "\">\n                    ").concat(numberContent, " \n                  </li>");
+      return page;
+    };
+    var addPaginationEvents = function addPaginationEvents(start_page, end_page) {
+      if (total_pages <= 0) {
+        return;
+      }
+      var onPrevPageClick = function onPrevPageClick(event) {
+        if (current_page > 0) {
+          current_page -= 1;
+        }
+        if (current_page < start_page) {
+          start_page = current_page;
+          end_page = Math.min(end_page, start_page + max_page_on_show);
+        }
+        pagination();
+      };
+      var onNextPageClick = function onNextPageClick(event) {
+        if (current_page + 1 < total_pages) {
+          current_page += 1;
+        }
+        if (current_page > end_page) {
+          end_page = current_page;
+          start_page = Math.max(0, end_page - max_page_on_show);
+        }
+        pagination();
+      };
+      var onPageClick = function onPageClick(event) {
+        var page_number = parseInt(event.target.ariaLabel);
+        current_page = page_number - 1; // note minus 1 here
+        pagination();
+      };
+      var prevPage = document.getElementById('prev-page');
+      prevPage.addEventListener('click', onPrevPageClick);
+      var nextPage = document.getElementById('next-page');
+      nextPage.addEventListener('click', onNextPageClick);
+      for (var i = start_page; i < end_page; i += 1) {
+        var page = document.getElementById("page-".concat(i + 1));
+        page.addEventListener('click', onPageClick);
+      }
+    };
+    paginationContent.innerHTML = ''; // clear
+    var begin_index = Math.min(current_page * article_per_page, resultItems.length);
+    var end_index = Math.min(begin_index + article_per_page, resultItems.length);
+    resultContent.innerHTML = "".concat(resultItems.slice(begin_index, end_index).map(function (result) {
+      return result.item;
+    }).join(''));
+
+    start_page = Math.max(0, total_pages - max_page_on_show);
+    end_page = start_page + Math.min(total_pages, max_page_on_show);
+    var pageContent = '<div class="#search-pagination">';
+    pageContent += '<div class="#search-pagination pagination">';
+    pageContent += '<ul>';
+    if (total_pages > 0) {
+      // add prev page arrow, when no prev page not selectable
+      pageContent += addPrevPage(current_page);
+      for (var i = start_page; i < end_page; i += 1) {
+        pageContent += addPage(i, current_page);
+      }
+      // add next page arrow, when no next page not selectable
+      pageContent += addNextPage(current_page);
+    }
+    pageContent += '</ul>';
+    pageContent += '</div>';
+    pageContent += '</div>';
+    paginationContent.innerHTML = pageContent;
+    addPaginationEvents(start_page, end_page);
+    resultContent.scrollTop = 0; // scroll to top
+    window.pjax && window.pjax.refresh(resultContent);
+  };
+  var inputEventFunction = function inputEventFunction() {
+    if (!isFetched) {
+      console.log("Data not fetched.");
+      return;
+    }
+    var searchText = input.value.trim().toLowerCase();
+    var keywords = searchText.split(/[-\s]+/);
+    if (keywords.length > 1) {
+      keywords.push(searchText);
+    }
+    resultItems = [];
+    if (searchText.length > 0) {
+      // Perform local searching
+      datas.forEach(function (_ref, index) {
+        var categories = _ref.categories,
+          title = _ref.title,
+          content = _ref.content,
+          url = _ref.url;
+        var titleInLowerCase = title.toLowerCase();
+        var contentInLowerCase = content.toLowerCase();
+        var indexOfTitle = [];
+        var indexOfContent = [];
+        var searchTextCount = 0;
+        keywords.forEach(function (keyword) {
+          indexOfTitle = indexOfTitle.concat(getIndexByWord(keyword, titleInLowerCase, false));
+          indexOfContent = indexOfContent.concat(getIndexByWord(keyword, contentInLowerCase, false));
+        });
+
+        // Show search results
+        if (indexOfTitle.length > 0 || indexOfContent.length > 0) {
+          var hitCount = indexOfTitle.length + indexOfContent.length;
+          // Sort index by position of keyword
+          [indexOfTitle, indexOfContent].forEach(function (index) {
+            index.sort(function (itemLeft, itemRight) {
+              if (itemRight.position !== itemLeft.position) {
+                return itemRight.position - itemLeft.position;
+              }
+              return itemLeft.word.length - item.word.length;
+            });
+          });
+          var slicesOfTitle = [];
+          if (indexOfTitle.length !== 0) {
+            var tmp = mergeIntoSlice(0, title.length, indexOfTitle, searchText);
+            searchTextCount += tmp.searchTextCountInSlice;
+            slicesOfTitle.push(tmp);
+          }
+          var slicesOfContent = [];
+          while (indexOfContent.length !== 0) {
+            var _item2 = indexOfContent[indexOfContent.length - 1];
+            var position = _item2.position,
+              word = _item2.word;
+            // Cut out 100 characters
+            var start = position - 20;
+            var end = position + 30;
+            if (start < 0) {
+              start = 0;
+            }
+            if (end < position + word.length) {
+              end = position + word.length;
+            }
+            if (end > content.length) {
+              end = content.length;
+            }
+            var _tmp = mergeIntoSlice(start, end, indexOfContent, searchText);
+            searchTextCount += _tmp.searchTextCountInSlice;
+            slicesOfContent.push(_tmp);
+          }
+
+          // Sort slices in content by search text's count and hits' count
+          slicesOfContent.sort(function (sliceLeft, sliceRight) {
+            if (sliceLeft.searchTextCount !== sliceRight.searchTextCount) {
+              return sliceRight.searchTextCount - sliceLeft.searchTextCount;
+            } else if (sliceLeft.hits.length !== sliceRight.hits.length) {
+              return sliceRight.hits.length - sliceLeft.hits.length;
+            }
+            return sliceLeft.start - sliceRight.start;
+          });
+
+          // Select top N slices in content
+          var upperBound = parseInt(CONFIG.search.top_n_per_article, 10);
+          if (upperBound >= 0) {
+            slicesOfContent = slicesOfContent.slice(0, upperBound);
+          }
+          var resultItem = '';
+          resultItem += '<div class="#search-hits item">';
+          // resultItem += '<div class="#search-hits">';
+          // resultItem += '<ol class="item">'
+          resultItem += '<li>';
+          // resultItem += '<li>';
+          var cats = categories !== undefined ? '<span>' + categories.join('<i class="ic i-angle-right"></i>') + '</span>' : '<span>No categories</span>';
+          resultItem += "<a href=\"".concat(url, "\">") + cats;
+          if (slicesOfTitle.length !== 0) {
+            // resultItem += `<li><a href="${url}">${highlightKeyword(title, slicesOfTitle[0])}</a>`;
+            resultItem += "<b>".concat(highlightKeyword(title, slicesOfTitle[0]), "</b><br>");
+          } else {
+            // resultItem += `<li><a href="${url}">${title}</a>`;
+            resultItem += "<b>".concat(title, "</b><br>");
+          }
+          slicesOfContent.forEach(function (slice) {
+            // resultItem += `<a href="${url}"><p>${highlightKeyword(content, slice)}...</p></a>`;
+            resultItem += "<li class=\"#search-hits subitem\">".concat(highlightKeyword(content, slice), " ...</li>");
+          });
+
+          // resultItem += '</li>';
+          resultItem += '</a>';
+          resultItem += '</li>';
+          // resultItem += '</ol>';
+          resultItem += '</div>';
+          resultItems.push({
+            item: resultItem,
+            id: resultItems.length,
+            hitCount: hitCount,
+            searchTextCount: searchTextCount
+          });
+        }
+      });
+    }
+    if (keywords.length === 1 && keywords[0] === '') {
+      resultContent.innerHTML = '<div id="no-result"><i></i></div>';
+    } else if (resultItems.length === 0) {
+      resultContent.innerHTML = '<div id="no-result"><i></i></div>';
+    } else {
+      resultItems.sort(function (resultLeft, resultRight) {
+        if (resultLeft.searchTextCount !== resultRight.searchTextCount) {
+          return resultRight.searchTextCount - resultLeft.searchTextCount;
+        } else if (resultLeft.hitCount !== resultRight.hitCount) {
+          return resultRight.hitCount - resultLeft.hitCount;
+        }
+        return resultRight.id - resultLeft.id;
+      });
+    }
+    // Do pagination
+    total_pages = Math.ceil(resultItems.length / article_per_page);
+    pagination();
+  };
+  var fetchData = function fetchData() {
+    fetch(CONFIG.root + searchPath).then(function (response) {
+      return response.text();
+    }).then(function (res) {
+      // Get the contents from search data
+      isFetched = true;
+      datas = isXml ? _toConsumableArray(new DOMParser().parseFromString(res, 'text/xml').querySelectorAll('entry')).map(function (element) {
+        return {
+          title: element.querySelector('title').textContent,
+          content: element.querySelector('content').textContent,
+          url: element.querySelector('url').textContent
+        };
+      }) : JSON.parse(res);
+      // Only match articles with not empty titles
+      datas = datas.filter(function (data) {
+        return data.title;
+      }).map(function (data) {
+        data.title = data.title.trim();
+        data.content = data.content ? data.content.trim().replace(/<[^>]+>/g, '') : '';
+        data.url = decodeURIComponent(data.url).replace(/\/{2,}/g, '/');
+        return data;
+      });
+      // Remove loading animation
+      document.getElementById('search-hits').innerHTML = '<i></i>';
+      inputEventFunction();
+    });
+  };
+  if (CONFIG.search.preload) {
+    console.log("fetch data.");
+    fetchData();
+  }
+  if (CONFIG.search.trigger === 'auto') {
+    input.addEventListener('input', inputEventFunction);
+  } else {
+    document.querySelector('.search-icon').addEventListener('click', inputEventFunction);
+    input.addEventListener('keypress', function (event) {
+      if (event.key === 'Enter') {
+        inputEventFunction();
+      }
+    });
+  }
+
+  // Handle and trigger popup window
+  document.querySelectorAll('.popup-trigger').forEach(function (element) {
+    element.addEventListener('click', function () {
+      document.body.style.overflow = 'hidden';
+      document.querySelector('.search-pop-overlay').classList.add('search-active');
+      input.focus();
+      if (!isFetched) fetchData();
+    });
+  });
+
+  // Handle and trigger popup window
+  $.each('.search', function (element) {
+    element.addEventListener('click', function () {
+      document.body.style.overflow = 'hidden';
+      transition(siteSearch, 'shrinkIn', function () {
+        $('.search-input').focus();
+      }); // transition.shrinkIn
+    });
+  });
+
+  // Monitor main search box
+  var onPopupClose = function onPopupClose() {
+    document.body.style.overflow = ' ';
+    transition(siteSearch, 0); // "transition.shrinkOut"
+  };
+
+  siteSearch.addEventListener('click', function (event) {
+    if (event.target === siteSearch) {
+      onPopupClose();
+    }
+  });
+  $('.close-btn').addEventListener('click', onPopupClose);
+  window.addEventListener('pjax:success', onPopupClose);
+  window.addEventListener('keyup', function (event) {
+    if (event.key === 'Escape') {
+      onPopupClose();
+    }
+  });
+};

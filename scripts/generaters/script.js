@@ -50,6 +50,21 @@ hexo.extend.generator.register('script', function(locals){
     }
   }
 
+  if(config.search.enable) {
+    siteConfig.search = {
+      path : config.search.path,
+      field : config.search.post,
+      format: config.search.format,
+      limit: config.search.limit,
+      content: config.search.content,
+      unescape: config.search.unescape,
+      preload: config.search.preload,
+      trigger: config.search.trigger,
+      top_n_per_article: config.search.top_n_per_article,
+      article_per_page: config.search.article_per_page,
+    }
+  }
+
   if(theme.audio) {
     siteConfig.audio = theme.audio
   }

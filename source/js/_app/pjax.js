@@ -125,7 +125,8 @@ const siteInit = function () {
   visibilityListener()
   themeColorListener()
 
-  algoliaSearch(pjax)
+  // algoliaSearch(pjax)
+  localSearch(pjax)
 
   window.addEventListener('scroll', scrollHandle)
 
