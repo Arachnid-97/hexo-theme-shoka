@@ -255,8 +255,28 @@ $item {
     &:hover {
       box-shadow: 0 0 2rem var(--box-bg-shadow);
 
+      .cover {
+        filter: brightness(.3);
+      }
+
       .cover img {
-        transform: scale(1.05) rotate(1deg);
+        transform: scale(1.25) rotate(2deg);
+      }
+
+      .info {
+        width: 75%;
+        +mobile(){
+          width: 100%;
+        }
+      }
+
+      .info h3{
+        margin: .625rem 0;
+        color: var(--color-blue);
+      }
+
+      .excerpt {
+        opacity: 1;
       }
     }
   }
@@ -267,6 +287,7 @@ $item {
     clip-path: polygon(0 0, 92% 0%, 100% 100%, 0% 100%);
     border-radius: .625rem 0 0 .625rem;
     overflow: hidden;
+    the-transition();
 
     +mobile() {
       width: 100%;
@@ -280,7 +301,6 @@ $item {
       object-fit: cover;
       width: 100%;
       height: 100%;
-      the-transition();
     }
   }
 
@@ -289,6 +309,7 @@ $item {
     width: 50%;
     padding: 1rem 1.5rem 3rem 0;
     perspective: 62.5rem;
+    the-transition();
 
     +mobile() {
       width: 100%;
@@ -312,8 +333,9 @@ $item {
       text-overflow: ellipsis;
       overflow: hidden;
       white-space: nowrap;
-      margin: .625rem 0;
+      margin: 3.525rem 0 0 0;
       color: var(--primary-color);
+      the-transition-margin();
     }
 
     .excerpt {
@@ -324,6 +346,9 @@ $item {
       -webkit-box-orient: vertical;
       -webkit-line-clamp: 3;
       text-overflow: ellipsis;
+      opacity: 0;
+      pointer-events: none;
+      the-transition();
     }
 
   }
@@ -376,7 +401,7 @@ $item {
 
     &:hover {
       .cover img {
-        transform: scale(1.05) rotate(-1deg);
+        transform: scale(1.25) rotate(-2deg);
       }
     }
   }
