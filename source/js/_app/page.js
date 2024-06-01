@@ -1057,16 +1057,19 @@ function _unsupportedIterableToArray(o, minLen) { if (!o) return; if (typeof o =
 function _iterableToArray(iter) { if (typeof Symbol !== "undefined" && iter[Symbol.iterator] != null || iter["@@iterator"] != null) return Array.from(iter); }
 function _arrayWithoutHoles(arr) { if (Array.isArray(arr)) return _arrayLikeToArray(arr); }
 function _arrayLikeToArray(arr, len) { if (len == null || len > arr.length) len = arr.length; for (var i = 0, arr2 = new Array(len); i < len; i++) arr2[i] = arr[i]; return arr2; }
-var localSearch = function localSearch(pjax) {
+const localSearch = function(pjax) {
   // 参考 hexo next 主题的配置方法
   // 参考 https://qiuyiwu.github.io/2019/01/25/Hexo-LocalSearch/ 博文
-  if (CONFIG.search === null) return;
-  if (!siteSearch) {
+  if(CONFIG.search === null)
+    return
+
+  if(!siteSearch) {
     siteSearch = BODY.createChild('div', {
       id: 'search',
       innerHTML: "<div class=\"inner\">\n<div class=\"header\">\n<span class=\"icon\">\n<i class=\"ic i-search\">\n</i>\n</span>\n<div class=\"search-input-container\">\n<input  class=\"search-input\"\nautocomplete=\"off\"\nplaceholder=\"".concat(LOCAL.search.placeholder, "\"\nspellcheck=\"false\"\ntype=\"text\"\nid=\"local-search-input\">\n</div>\n<span class=\"close-btn\">\n<i class=\"ic i-times-circle\">\n</i>\n</span>\n</div>\n<div class=\"results\" id=\"search-results\">\n<div class=\"inner\">\n<div id=\"search-stats\">\n</div>\n<div id=\"search-hits\">\n</div>\n<div id=\"search-pagination\">\n</div>\n</div>\n</div>\n</div>\n</div>")
     });
   }
+
   var isFetched = false;
   var datas;
   var isXml = true;
@@ -1176,9 +1179,9 @@ var localSearch = function localSearch(pjax) {
         numberContent = '<span class="#search-pagination page-number"><i class="ic i-angle-left"></i></span>';
       } else {
         classContent = '#search-pagination pagination-item';
-        numberContent = "<a class=\"#search-pagination page-number\" aria-label=\"Prev\" href=\"#\">\n                          <i class=\"ic i-angle-left\"></i>\n                        </a>";
+        numberContent = "<a class=\"#search-pagination page-number\" aria-label=\"Prev\" href=\"#\"><i class=\"ic i-angle-left\"></i></a>";
       }
-      var prevPage = "<li class=\"".concat(classContent, "\" id=\"prev-page\">\n                        ").concat(numberContent, " \n                      </li>");
+      var prevPage = "<li class=\"".concat(classContent, "\" id=\"prev-page\">").concat(numberContent, " </li>");
       return prevPage;
     };
     var addNextPage = function addNextPage(current_page) {
@@ -1189,20 +1192,20 @@ var localSearch = function localSearch(pjax) {
         numberContent = '<span class="#search-pagination page-number"><i class="ic i-angle-right"></i></span>';
       } else {
         classContent = '#search-pagination pagination-item';
-        numberContent = "<a class=\"#search-pagination page-number\" aria-label=\"Next\" href=\"#\">\n                          <i class=\"ic i-angle-right\"></i>\n                        </a>";
+        numberContent = "<a class=\"#search-pagination page-number\" aria-label=\"Next\" href=\"#\"><i class=\"ic i-angle-right\"></i></a>";
       }
-      var nextPage = "<li class=\"".concat(classContent, "\" id=\"next-page\">\n                        ").concat(numberContent, " \n                      </li>");
+      var nextPage = "<li class=\"".concat(classContent, "\" id=\"next-page\">").concat(numberContent, " </li>");
       return nextPage;
     };
     var addPage = function addPage(index, current_page) {
       var classContent = '';
-      var numberContent = "<a class=\"#search-pagination page-number\" aria-label=\"".concat(index + 1, "\" href=\"#\">\n                            ").concat(index + 1, "\n                          </a>");
+      var numberContent = "<a class=\"#search-pagination page-number\" aria-label=\"".concat(index + 1, "\" href=\"#\">").concat(index + 1, "</a>");
       if (index === current_page) {
         classContent = '#search-pagination pagination-item current';
       } else {
         classContent = '#search-pagination pagination-item';
       }
-      var page = "<li class=\"".concat(classContent, "\" id=\"page-").concat(index + 1, "\">\n                    ").concat(numberContent, " \n                  </li>");
+      var page = "<li class=\"".concat(classContent, "\" id=\"page-").concat(index + 1, "\">").concat(numberContent, " </li>");
       return page;
     };
     var addPaginationEvents = function addPaginationEvents(start_page, end_page) {
@@ -1357,28 +1360,20 @@ var localSearch = function localSearch(pjax) {
           }
           var resultItem = '';
           resultItem += '<div class="#search-hits item">';
-          // resultItem += '<div class="#search-hits">';
-          // resultItem += '<ol class="item">'
           resultItem += '<li>';
-          // resultItem += '<li>';
           var cats = categories !== undefined ? '<span>' + categories.join('<i class="ic i-angle-right"></i>') + '</span>' : '<span>No categories</span>';
           resultItem += "<a href=\"".concat(url, "\">") + cats;
           if (slicesOfTitle.length !== 0) {
-            // resultItem += `<li><a href="${url}">${highlightKeyword(title, slicesOfTitle[0])}</a>`;
             resultItem += "<b>".concat(highlightKeyword(title, slicesOfTitle[0]), "</b><br>");
           } else {
-            // resultItem += `<li><a href="${url}">${title}</a>`;
             resultItem += "<b>".concat(title, "</b><br>");
           }
           slicesOfContent.forEach(function (slice) {
-            // resultItem += `<a href="${url}"><p>${highlightKeyword(content, slice)}...</p></a>`;
             resultItem += "<li class=\"#search-hits subitem\">".concat(highlightKeyword(content, slice), " ...</li>");
           });
 
-          // resultItem += '</li>';
           resultItem += '</a>';
           resultItem += '</li>';
-          // resultItem += '</ol>';
           resultItem += '</div>';
           resultItems.push({
             item: resultItem,
@@ -1460,29 +1455,29 @@ var localSearch = function localSearch(pjax) {
   });
 
   // Handle and trigger popup window
-  $.each('.search', function (element) {
-    element.addEventListener('click', function () {
+  $.each('.search', function(element) {
+    element.addEventListener('click', function() {
       document.body.style.overflow = 'hidden';
-      transition(siteSearch, 'shrinkIn', function () {
-        $('.search-input').focus();
-      }); // transition.shrinkIn
+      transition(siteSearch, 'shrinkIn', function() {
+          $('.search-input').focus();
+        }) // transition.shrinkIn
     });
   });
 
   // Monitor main search box
-  var onPopupClose = function onPopupClose() {
-    document.body.style.overflow = ' ';
+  const onPopupClose = function() {
+    document.body.style.overflow = '';
     transition(siteSearch, 0); // "transition.shrinkOut"
   };
 
-  siteSearch.addEventListener('click', function (event) {
+  siteSearch.addEventListener('click', function(event) {
     if (event.target === siteSearch) {
       onPopupClose();
     }
   });
   $('.close-btn').addEventListener('click', onPopupClose);
   window.addEventListener('pjax:success', onPopupClose);
-  window.addEventListener('keyup', function (event) {
+  window.addEventListener('keyup', function(event) {
     if (event.key === 'Escape') {
       onPopupClose();
     }

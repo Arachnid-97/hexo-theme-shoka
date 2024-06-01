@@ -132,7 +132,7 @@ const visibilityListener = function () {
     switch(document.visibilityState) {
       case 'hidden':
         $('[rel="icon"]').attr('href', statics + CONFIG.favicon.hidden);
-        document.title = LOCAL.favicon.hide;
+        // document.title = LOCAL.favicon.hide;
         if(CONFIG.loader.switch)
           Loader.show()
         clearTimeout(titleTime);
@@ -141,10 +141,10 @@ const visibilityListener = function () {
         $('[rel="icon"]').attr('href', statics + CONFIG.favicon.normal);
         document.title = LOCAL.favicon.show;
         if(CONFIG.loader.switch)
-          Loader.hide(1000)
+          Loader.hide(400)
         titleTime = setTimeout(function () {
           document.title = originTitle;
-        }, 2000);
+        }, 600);
       break;
     }
   });
