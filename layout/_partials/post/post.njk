@@ -21,6 +21,27 @@
       </div>
     {%- endif %}
 
+    {%- if post.reprintlink %}
+      {%- set reprintlinkInfo = post.reprintlink.split('||') %}
+      {%- set linkUrl = reprintlinkInfo[0] | trim %}
+      {%- if reprintlinkInfo[1] %}
+        {%- set linkUrl = reprintlinkInfo[1] | trim %}
+      {%- endif %}
+      {%- set linkName = reprintlinkInfo[0] | trim %}
+      {%- if linkUrl.startsWith('http') %}
+        <div class="note info">
+          <p>{{__('post.reprintlink', '')}}
+            <a href="{{ linkUrl }}" rel="noopener external nofollow noreferrer" target="_blank" class="exturl" title="{{ linkUrl }}">{{ linkName }}</a>
+          </p>
+        </div>
+      {%- else %}
+        <div class="note info">
+          <p>{{__('post.reprintlink', post.reprintlink)}}
+            <span class="blue">{{__('post.reprint_unable_trace_source')}}</span></p>
+        </div>
+      {%- endif %}
+    {%- endif %}
+
     {{ post.content }}
 
     {%- if post.tags and post.tags.length %}

@@ -39,6 +39,9 @@ index:
 post:
   posted: 发表于
   edited: 更新于
+  reprint: 『转载』
+  reprintlink: '🚀 本文转载自：%s'
+  reprint_unable_trace_source: 『原文出处暂无处追寻』
   created: 创建时间
   modified: 修改时间
   edit: 编辑

@@ -1,5 +1,15 @@
 {% macro render(item, full = false) %}
 <div class="meta">
+  {%- if item.reprintlink %}
+    <span class="item" title="{{ __('post.reprint') }}" style="margin-right: -0.625em">
+      <span class="icon">
+        <i class="ic i-zhuanzai"></i>
+      </span>
+      <span class="reprint" style="margin-left: -0.525em">
+        <font>{{ __('post.reprint') }}</font>
+      </span>
+    </span>
+  {%- endif %}
   {%- set create_title = __('post.created') + __('symbol.colon') + full_date(item.date) %}
   <span class="item" title="{{ create_title }}">
     <span class="icon">
