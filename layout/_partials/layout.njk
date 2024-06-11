@@ -408,6 +408,17 @@
       gap_fill: "{{ __('quiz.gap_fill') }}",
       mistake: "{{ __('quiz.mistake') }}"
     },{%- endif %}
+    {%- if page.isOutdated === false %}
+        isOutdated: false,
+    {%- else %}
+        isOutdated: true,
+        format_year_as_prefix: "{{ __('isOutdated.format_year_as_prefix') }}",
+        format_month_as_prefix: "{{ __('isOutdated.format_month_as_prefix') }}",
+        format_month_as_suffix: "{{ __('isOutdated.format_month_as_suffix') }}",
+        format_day_as_prefix: "{{ __('isOutdated.format_day_as_prefix') }}",
+        format_day_as_suffix: "{{ __('isOutdated.format_day_as_suffix') }}",
+        template: "{{ __('isOutdated.template') }}",
+    {%- endif %}
     ignores : [
       function(uri) {
         return uri.includes('#');

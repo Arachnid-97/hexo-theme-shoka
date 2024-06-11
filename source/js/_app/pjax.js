@@ -102,6 +102,8 @@ const siteRefresh = function (reload) {
   cardActive()
 
   lazyload.observe()
+
+  isOutdated() // 判断文章时效性
 }
 
 const siteInit = function () {
